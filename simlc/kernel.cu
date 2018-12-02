@@ -26,6 +26,7 @@ __global__ void sim_lc(float * const front, float * const back, const size_t pla
 }
 
 __host__ cudaError_t invoke_sim_lc(
+	float * const et,
 	const dim3 grid,
 	const dim3 block,
 	float * const front,
@@ -35,7 +36,9 @@ __host__ cudaError_t invoke_sim_lc(
 {
 	cudaError_t status;
 
+	cudaEventRecord(start);
 	sim_lc << <grid, block >> > (front, back, plates, mobiles);
+	cudaEventRecord(stop);
 
 	if ((status = cudaGetLastError()) != cudaSuccess)
 	{
@@ -49,14 +52,18 @@ __host__ cudaError_t invoke_sim_lc(
 		return status;
 	}
 
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(et, start, stop);
+
 	return status;
 }
 
 int main()
 {
-    const size_t plates = 20;
+	const size_t plates = 20000;
 	const size_t mobiles = 1;
 	const size_t io_size = plates * mobiles;
+	float et;
 
 	dim3 grid(io_size / 32 + 1), block(32);
 
@@ -68,7 +75,7 @@ int main()
 
 	while (true)
 	{
-		if ((invoke_sim_lc(grid, block, front_dev, back_dev, plates, mobiles)) != cudaSuccess)
+		if ((invoke_sim_lc(&et, grid, block, front_dev, back_dev, plates, mobiles)) != cudaSuccess)
 			goto cleanup;
 
 		if (sync_buffer_to_host(front_buf, back_dev, io_size) != cudaSuccess)
@@ -76,7 +83,8 @@ int main()
 
 		SWAP_BUFFER(front_dev, back_dev);
 
-		print_buffer(front_buf, plates, mobiles);
+		printf("elapsed time %f\n", et);
+		//print_buffer(front_buf, plates, mobiles);
 
 		getchar();
 	}

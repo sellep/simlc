@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static cudaEvent_t start, stop;
+
 static float *front_buf, *back_buf;
 
 #define SWAP_BUFFER(front, back) { \
@@ -25,12 +27,6 @@ __host__ static inline void init_buffer(const size_t size)
 	memset(back_buf, 0, sizeof(float) * size);
 
 	front_buf[0] = 1;
-}
-
-__host__ static void deinit_device(float * const front_dev, float * const back_dev)
-{
-	cudaFree(front_dev);
-	cudaFree(back_dev);
 }
 
 __host__ static cudaError_t init_device(
@@ -72,7 +68,19 @@ __host__ static cudaError_t init_device(
 		return status;
 	}
 
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
 	return status;
+}
+
+__host__ static void deinit_device(float * const front_dev, float * const back_dev)
+{
+	cudaFree(front_dev);
+	cudaFree(back_dev);
+
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
 }
 
 __host__ static cudaError_t sync_buffer_to_host(float * io, float const * const io_dev, const size_t size)
